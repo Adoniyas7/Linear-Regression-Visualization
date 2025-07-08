@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real Estate Price Analysis</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      canvas {
+        border: 2px solid #333;
+        background-color: white;
+        max-width: 100%;
+      }
+      #info {
+        margin-top: 20px;
+        text-align: center;
+        max-width: 600px;
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      #stats-panel {
+        background: #e8f4f8;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      #stats-panel p {
+        margin: 8px 0;
+        font-size: 18px;
+      }
+      #correlation {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1e90ff;
+      }
+      #correlationInfo {
+        color: #d9534f;
+        font-weight: bold;
+      }
+      #slope,
+      #intercept {
+        font-weight: bold;
+        color: #ff0000;
+      }
+      #ssr {
+        font-weight: bold;
+        color: #00ff00;
+      }
+      .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+        border-bottom: 1px dotted #333;
+      }
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 200px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 5px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -100px;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+      button,
+      input[type="number"],
+      input[type="submit"],
+      select {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        border-radius: 5px;
+      }
+      button,
+      input[type="submit"],
+      select {
+        cursor: pointer;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+      }
+      button:hover,
+      input[type="submit"]:hover,
+      select:hover {
+        background-color: #45a049;
+      }
+      input[type="number"],
+      input[type="range"] {
+        width: 100px;
+        border: 1px solid #ccc;
+      }
+      #predictionResult {
+        color: #d9534f;
+        font-weight: bold;
+      }
+      #pointInfo,
+      #formulaInfo {
+        margin-top: 10px;
+        color: #555;
+        font-size: 14px;
+      }
+      label {
+        margin-right: 10px;
+      }
+      .slider-container {
+        margin: 10px;
+      }
+      #predictionHistory {
+        margin-top: 15px;
+        font-size: 14px;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 10px auto;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: center;
+      }
+      th {
+        background: #f0f0f0;
+      }
+      @media (max-width: 600px) {
+        #info,
+        #stats-panel {
+          max-width: 90%;
+        }
+        #stats-panel p {
+          font-size: 16px;
+        }
+        #correlation {
+          font-size: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      <h2>Real Estate Price Analysis</h2>
+      <p>
+        Explore relationships in real estate data (e.g., price vs. square
+        footage). Click to add points or load a dataset.
+      </p>
+      <div id="stats-panel">
+        <p>
+          <span class="tooltip"
+            >Correlation Coefficient (r)<span class="tooltiptext"
+              >Measures the strength and direction of the relationship between X
+              and Price (-1 to 1).</span
+            ></span
+          >: <span id="correlation">0.00</span>
+          <span id="correlationInfo"></span>
+        </p>
+        <p>
+          <span class="tooltip"
+            >Regression Line<span class="tooltiptext"
+              >Best-fit line (Price = m*X + b) that minimizes the sum of squared
+              residuals.</span
+            ></span
+          >: Price ($K) = <span id="slope">0.00</span>*X +
+          <span id="intercept">0.00</span>
+        </p>
+        <p>
+          <span class="tooltip"
+            >Sum of Squared Residuals<span class="tooltiptext"
+              >Total squared differences between actual and predicted prices,
+              minimized by the regression line.</span
+            ></span
+          >: <span id="ssr">0.00</span>
+        </p>
+      </div>
+      <p id="pointInfo">Hover over a point to see coordinates</p>
+      <p id="formulaInfo">
+        Formula: r = Σ((x - x̄)(y - ȳ)) / √(Σ(x - x̄)²Σ(y - ȳ)²), Price ($K) = m*X
+        + b
+      </p>
+      <div class="slider-container">
+        <label
+          >Adjust Slope:
+          <input
+            type="range"
+            id="manualSlope"
+            min="-2"
+            max="2"
+            step="0.01"
+            value="0"
+            oninput="updateManualRegression()"
+        /></label>
+        <label
+          >Adjust Intercept:
+          <input
+            type="range"
+            id="manualIntercept"
+            min="-1"
+            max="1"
+            step="0.01"
+            value="0"
+            oninput="updateManualRegression()"
+        /></label>
+        <button onclick="resetRegression()">Reset to Best-Fit Line</button>
+      </div>
+      <form onsubmit="predict(event)">
+        <label>Predict Price ($K) for X: </label>
+        <input
+          type="number"
+          id="predictX"
+          step="0.01"
+          min="0"
+          placeholder="Enter X"
+          oninput="predictDynamic()"
+        />
+        <input type="submit" value="Predict" />
+      </form>
+      <p id="predictionResult"></p>
+      <select id="dataset" onchange="loadDataset()">
+        <option value="none">Select Real Estate Dataset</option>
+        <option value="strongPositive">
+          Strong Positive (Price vs. Square Footage)
+        </option>
+        <option value="weakPositive">Weak Positive (Price vs. Bedrooms)</option>
+        <option value="strongNegative">
+          Strong Negative (Price vs. Distance to City)
+        </option>
+        <option value="weakNegative">
+          Weak Negative (Price vs. Property Age)
+        </option>
+        <option value="noCorrelation">
+          No Correlation (Price vs. Year Built)
+        </option>
+      </select>
+      <button onclick="toggleResiduals()">Toggle Residuals</button>
+      <button onclick="toggleConfidence()">Toggle Confidence Interval</button>
+      <button onclick="clearPoints()">Clear Points</button>
+      <div id="predictionHistory">
+        <table>
+          <tr>
+            <th>X Input</th>
+            <th>Predicted Price ($K)</th>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <script>
+      let points = [];
+      let predictedPoint = null;
+      let showResiduals = true;
+      let showConfidence = true;
+      let hoveredPoint = null;
+      let manualMode = false;
+      let manualSlope = 0;
+      let manualIntercept = 0;
+      let animationProgress = 0;
+      let isAnimating = false;
+      let predictionHistory = [];
+      let currentDataset = "none";
+
+      function setup() {
+        createCanvas(600, 400);
+        background(255);
+        drawGridAndAxes();
+      }
+
+      function draw() {
+        background(255);
+        drawGridAndAxes();
+        drawPoints();
+        if (points.length >= 2) {
+          let stats = calculateStats();
+          let slope = manualMode ? manualSlope : stats.slope;
+          let intercept = manualMode ? manualIntercept : stats.intercept;
+          if (isAnimating && !manualMode) {
+            animationProgress += 0.05;
+            if (animationProgress >= 1) {
+              animationProgress = 1;
+              isAnimating = false;
+            }
+            slope = lerp(0, stats.slope, animationProgress);
+            intercept = lerp(0, stats.intercept, animationProgress);
+          }
+          if (showConfidence && !manualMode) {
+            drawConfidenceInterval(stats.slope, stats.intercept, stats.se);
+          }
+          drawRegressionLine(slope, intercept);
+          if (showResiduals) {
+            drawResiduals(slope, intercept);
+          }
+          updateInfo(stats.r, slope, intercept, calculateSSR(slope, intercept));
+        }
+        if (predictedPoint) {
+          drawPredictedPoint(predictedPoint.x, predictedPoint.y);
+        }
+        updatePointInfo();
+      }
+
+      function mousePressed() {
+        if (
+          mouseX > 50 &&
+          mouseX < width - 50 &&
+          mouseY > 50 &&
+          mouseY < height - 50
+        ) {
+          let x = (mouseX - 50) / (width - 100);
+          let y = 1 - (mouseY - 50) / (height - 100);
+          points.push({
+            x: parseFloat(x.toFixed(2)),
+            y: parseFloat(y.toFixed(2)),
+          });
+          predictedPoint = null;
+          manualMode = false;
+          isAnimating = true;
+          animationProgress = 0;
+          document.getElementById("predictionResult").innerText = "";
+          document.getElementById("predictX").value = "";
+          resetSliders();
+        }
+      }
+
+      function mouseMoved() {
+        hoveredPoint = null;
+        for (let p of points) {
+          let px = 50 + p.x * (width - 100);
+          let py = height - 50 - p.y * (height - 100);
+          if (dist(mouseX, mouseY, px, py) < 8) {
+            hoveredPoint = p;
+            break;
+          }
+        }
+      }
+
+      function drawGridAndAxes() {
+        stroke(200);
+        strokeWeight(0.5);
+        for (let i = 0; i <= 1; i += 0.1) {
+          let x = 50 + i * (width - 100);
+          let y = height - 50 - i * (height - 100);
+          line(x, 50, x, height - 50);
+          line(50, y, width - 50, y);
+        }
+        stroke(0);
+        strokeWeight(1);
+        line(50, 50, 50, height - 50);
+        line(50, height - 50, width - 50, height - 50);
+        textSize(12);
+        textAlign(CENTER);
+        let xLabel = "X",
+          xMax = 10,
+          xUnit = "";
+        if (currentDataset === "strongPositive") {
+          xLabel = "Square Footage (sq ft)";
+          xMax = 5000;
+          xUnit = " sq ft";
+        } else if (currentDataset === "weakPositive") {
+          xLabel = "Bedrooms";
+          xMax = 6;
+          xUnit = "";
+        } else if (currentDataset === "strongNegative") {
+          xLabel = "Distance to City (miles)";
+          xMax = 20;
+          xUnit = " miles";
+        } else if (currentDataset === "weakNegative") {
+          xLabel = "Property Age (years)";
+          xMax = 50;
+          xUnit = " years";
+        } else if (currentDataset === "noCorrelation") {
+          xLabel = "Year Built";
+          xMax = 2020;
+          xUnit = "";
+        }
+        for (let i = 0; i <= 1; i += 0.2) {
+          let x = 50 + i * (width - 100);
+          let y = height - 50 - i * (height - 100);
+          line(x, height - 50, x, height - 55);
+          line(45, y, 50, y);
+          text(nfc(i * xMax, 0), x, height - 35);
+          text(nfc(i * 1000, 0), 35, y + 5);
+        }
+        text(xLabel, width - 30, height - 35);
+        text("Price ($K)", 35, 35);
+      }
+
+      function drawPoints() {
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        let xUnit =
+          currentDataset === "strongPositive"
+            ? " sq ft"
+            : currentDataset === "strongNegative"
+            ? " miles"
+            : currentDataset === "weakNegative"
+            ? " years"
+            : "";
+        for (let p of points) {
+          let px = 50 + p.x * (width - 100);
+          let py = height - 50 - p.y * (height - 100);
+          let isOutlier = points.length >= 2 && isPointOutlier(p);
+          fill(...(isOutlier ? [255, 0, 0] : [0, 0, 255]));
+          noStroke();
+          ellipse(px, py, 8, 8);
+          if (p === hoveredPoint) {
+            fill(255, 165, 0);
+            ellipse(px, py, 10, 10);
+            fill(0);
+            textSize(12);
+            textAlign(LEFT);
+            let xVal = (p.x * xMax).toFixed(0);
+            let label = `(${xVal}${xUnit}, ${(p.y * 1000).toFixed(0)} $K)`;
+            if (isOutlier) label += " [Outlier]";
+            text(label, px + 10, py - 10);
+          }
+        }
+      }
+
+      function drawResiduals(slope, intercept) {
+        stroke(0, 255, 0);
+        strokeWeight(1);
+        for (let p of points) {
+          let px = 50 + p.x * (width - 100);
+          let py = height - 50 - p.y * (height - 100);
+          let predictedY = slope * p.x + intercept;
+          let predictedPy = height - 50 - predictedY * (height - 100);
+          line(px, py, px, predictedPy);
+          if (p === hoveredPoint) {
+            fill(0);
+            textSize(12);
+            textAlign(CENTER);
+            text(
+              `Residual: ${((p.y - predictedY) * 1000).toFixed(0)} $K`,
+              px,
+              (py + predictedPy) / 2
+            );
+          }
+        }
+        strokeWeight(1);
+      }
+
+      function calculateStats() {
+        let n = points.length;
+        let sumX = 0;
+        let sumY = 0;
+        let sumXY = 0;
+        let sumXX = 0;
+        let sumYY = 0;
+        let ssr = 0;
+        for (let p of points) {
+          sumX += p.x;
+          sumY += p.y;
+          sumXY += p.x * p.y;
+          sumXX += p.x * p.x;
+          sumYY += p.y * p.y;
+        }
+        let meanX = sumX / n;
+        let meanY = sumY / n;
+        let slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        let intercept = meanY - slope * meanX;
+        let rNum = n * sumXY - sumX * sumY;
+        let rDen = Math.sqrt(
+          (n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY)
+        );
+        let r = rDen !== 0 ? rNum / rDen : 0;
+        for (let p of points) {
+          let predictedY = slope * p.x + intercept;
+          ssr += (p.y - predictedY) ** 2;
+        }
+        let se = n >= 2 ? Math.sqrt(ssr / (n - 2)) : 0;
+        return {
+          r: r,
+          slope: slope,
+          intercept: intercept,
+          ssr: ssr,
+          se: se,
+          meanX: meanX,
+          meanY: meanY,
+        };
+      }
+
+      function calculateSSR(slope, intercept) {
+        let ssr = 0;
+        for (let p of points) {
+          let predictedY = slope * p.x + intercept;
+          ssr += (p.y - predictedY) ** 2;
+        }
+        return ssr;
+      }
+
+      function isPointOutlier(p) {
+        if (points.length < 2) return false;
+        let stats = calculateStats();
+        let predictedY = stats.slope * p.x + stats.intercept;
+        let residual = Math.abs(p.y - predictedY);
+        return residual > 2.5 * stats.se;
+      }
+
+      function drawRegressionLine(slope, intercept) {
+        stroke(255, 0, 0);
+        strokeWeight(2);
+        let x1 = 0;
+        let y1 = intercept;
+        let x2 = 1;
+        let y2 = slope * x2 + intercept;
+        let px1 = 50 + x1 * (width - 100);
+        let py1 = height - 50 - y1 * (height - 100);
+        let px2 = 50 + x2 * (width - 100);
+        let py2 = height - 50 - y2 * (height - 100);
+        line(px1, py1, px2, py2);
+        strokeWeight(1);
+      }
+
+      function drawConfidenceInterval(slope, intercept, se) {
+        fill(0, 0, 255, 20);
+        noStroke();
+        beginShape();
+        for (let x = 0; x <= 1; x += 0.01) {
+          let y = slope * x + intercept;
+          let ci = 1.96 * se;
+          let px = 50 + x * (width - 100);
+          let pyUpper = height - 50 - Math.min(1, y + ci) * (height - 100);
+          vertex(px, pyUpper);
+        }
+        for (let x = 1; x >= 0; x -= 0.01) {
+          let y = slope * x + intercept;
+          let ci = 1.96 * se;
+          let px = 50 + x * (width - 100);
+          let pyLower = height - 50 - Math.max(0, y - ci) * (height - 100);
+          vertex(px, pyLower);
+        }
+        endShape(CLOSE);
+      }
+
+      function drawPredictedPoint(x, y) {
+        y = Math.max(0, Math.min(1, y));
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        let xUnit =
+          currentDataset === "strongPositive"
+            ? " sq ft"
+            : currentDataset === "strongNegative"
+            ? " miles"
+            : currentDataset === "weakNegative"
+            ? " years"
+            : "";
+        fill(255, 165, 0);
+        noStroke();
+        let px = 50 + x * (width - 100);
+        let py = height - 50 - y * (height - 100);
+        ellipse(px, py, 12, 12);
+        fill(0);
+        textSize(12);
+        textAlign(LEFT);
+        let labelX = px + 10;
+        let labelY = py - 10;
+        if (labelX > width - 100) labelX = px - 100;
+        if (labelY < 50) labelY = py + 20;
+        text(
+          `Predicted: (${(x * xMax).toFixed(0)}${xUnit}, ${(y * 1000).toFixed(
+            0
+          )} $K)`,
+          labelX,
+          labelY
+        );
+      }
+
+      function updateInfo(r, slope, intercept, ssr) {
+        document.getElementById("correlation").innerText = r.toFixed(2);
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        document.getElementById("slope").innerText = (
+          (slope * 1000) /
+          xMax
+        ).toFixed(2);
+        document.getElementById("intercept").innerText = (
+          intercept * 1000
+        ).toFixed(2);
+        document.getElementById("ssr").innerText = (ssr * 1000000).toFixed(2);
+        let correlationText = "";
+        if (Math.abs(r) >= 0.8)
+          correlationText = "Strong " + (r > 0 ? "Positive" : "Negative");
+        else if (Math.abs(r) >= 0.4)
+          correlationText = "Moderate " + (r > 0 ? "Positive" : "Negative");
+        else correlationText = "Weak/No Correlation";
+        document.getElementById(
+          "correlationInfo"
+        ).innerText = `(${correlationText})`;
+      }
+
+      function updatePointInfo() {
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        let xUnit =
+          currentDataset === "strongPositive"
+            ? " sq ft"
+            : currentDataset === "strongNegative"
+            ? " miles"
+            : currentDataset === "weakNegative"
+            ? " years"
+            : "";
+        if (hoveredPoint) {
+          let x = (hoveredPoint.x * xMax).toFixed(0);
+          let y = (hoveredPoint.y * 1000).toFixed(0);
+          let isOutlier = isPointOutlier(hoveredPoint);
+          let text = `Point: (${x}${xUnit}, ${y} $K)`;
+          if (isOutlier) text += " [Outlier]";
+          document.getElementById("pointInfo").innerText = text;
+        } else {
+          document.getElementById("pointInfo").innerText =
+            "Hover over a point to see coordinates";
+        }
+      }
+
+      function predict(event) {
+        event.preventDefault();
+        predictDynamic();
+      }
+
+      function predictDynamic() {
+        if (points.length < 2) {
+          document.getElementById("predictionResult").innerText =
+            "Add at least 2 points to predict.";
+          predictedPoint = null;
+          return;
+        }
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        let xUnit =
+          currentDataset === "strongPositive"
+            ? " sq ft"
+            : currentDataset === "strongNegative"
+            ? " miles"
+            : currentDataset === "weakNegative"
+            ? " years"
+            : "";
+        let x = parseFloat(document.getElementById("predictX").value);
+        if (isNaN(x) || x < 0 || x > xMax) {
+          document.getElementById(
+            "predictionResult"
+          ).innerText = `Enter a valid X value (0 to ${xMax}${xUnit}).`;
+          predictedPoint = null;
+          return;
+        }
+        let stats = calculateStats();
+        let xScaled = x / xMax;
+        let y = stats.slope * xScaled + stats.intercept;
+        predictedPoint = { x: xScaled, y: y };
+        let predictionText = `Predicted Price for X=${x.toFixed(0)}${xUnit}: ${(
+          y * 1000
+        ).toFixed(0)} $K`;
+        document.getElementById("predictionResult").innerText = predictionText;
+        predictionHistory.push({
+          x: x.toFixed(0) + xUnit,
+          y: (y * 1000).toFixed(0),
+        });
+        if (predictionHistory.length > 5) predictionHistory.shift();
+        updatePredictionHistory();
+      }
+
+      function updatePredictionHistory() {
+        let table = document.getElementById("predictionHistory").children[0];
+        table.innerHTML =
+          "<tr><th>X Input</th><th>Predicted Price ($K)</th></tr>";
+        for (let pred of predictionHistory) {
+          let row = table.insertRow();
+          row.insertCell().innerText = pred.x || "0";
+          row.insertCell().innerText = pred.y || "0";
+        }
+      }
+
+      function updateManualRegression() {
+        manualMode = true;
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        manualSlope =
+          (parseFloat(document.getElementById("manualSlope").value) * xMax) /
+          1000;
+        manualIntercept =
+          parseFloat(document.getElementById("manualIntercept").value) / 1000;
+      }
+
+      function resetRegression() {
+        manualMode = false;
+        isAnimating = true;
+        animationProgress = 0;
+        resetSliders();
+      }
+
+      function resetSliders() {
+        let xMax =
+          currentDataset === "strongPositive"
+            ? 5000
+            : currentDataset === "weakPositive"
+            ? 6
+            : currentDataset === "strongNegative"
+            ? 20
+            : currentDataset === "weakNegative"
+            ? 50
+            : currentDataset === "noCorrelation"
+            ? 2020
+            : 10;
+        if (points.length >= 2) {
+          let stats = calculateStats();
+          document.getElementById("manualSlope").value = (
+            (stats.slope * 1000) /
+            xMax
+          ).toFixed(2);
+          document.getElementById("manualIntercept").value = (
+            stats.intercept * 1000
+          ).toFixed(2);
+        } else {
+          document.getElementById("manualSlope").value = 0;
+          document.getElementById("manualIntercept").value = 0;
+        }
+      }
+
+      function toggleResiduals() {
+        showResiduals = !showResiduals;
+        document.getElementById("ssr").parentElement.style.display =
+          showResiduals ? "block" : "none";
+      }
+
+      function toggleConfidence() {
+        showConfidence = !showConfidence;
+      }
+
+      function loadDataset() {
+        let dataset = document.getElementById("dataset").value;
+        currentDataset = dataset;
+        points = [];
+        predictedPoint = null;
+        manualMode = false;
+        isAnimating = true;
+        animationProgress = 0;
+        predictionHistory = [];
+        document.getElementById("predictionResult").innerText = "";
+        document.getElementById("predictX").value = "";
+        updatePredictionHistory();
+        resetSliders();
+        let description = "";
+        if (dataset === "strongPositive") {
+          points = [
+            { x: 1000 / 5000, y: 200 / 1000 },
+            { x: 1500 / 5000, y: 300 / 1000 },
+            { x: 2000 / 5000, y: 400 / 1000 },
+            { x: 2500 / 5000, y: 500 / 1000 },
+            { x: 3000 / 5000, y: 600 / 1000 },
+            { x: 3500 / 5000, y: 700 / 1000 },
+          ];
+          description = "Dataset: Price vs. Square Footage (Strong Positive)";
+        } else if (dataset === "weakPositive") {
+          points = [
+            { x: 1 / 6, y: 200 / 1000 },
+            { x: 2 / 6, y: 250 / 1000 },
+            { x: 3 / 6, y: 300 / 1000 },
+            { x: 4 / 6, y: 350 / 1000 },
+            { x: 5 / 6, y: 400 / 1000 },
+            { x: 6 / 6, y: 450 / 1000 },
+          ];
+          description = "Dataset: Price vs. Number of Bedrooms (Weak Positive)";
+        } else if (dataset === "strongNegative") {
+          points = [
+            { x: 2 / 20, y: 800 / 1000 },
+            { x: 5 / 20, y: 700 / 1000 },
+            { x: 8 / 20, y: 600 / 1000 },
+            { x: 11 / 20, y: 500 / 1000 },
+            { x: 14 / 20, y: 400 / 1000 },
+            { x: 17 / 20, y: 300 / 1000 },
+          ];
+          description =
+            "Dataset: Price vs. Distance to City Center (Strong Negative)";
+        } else if (dataset === "weakNegative") {
+          points = [
+            { x: 5 / 50, y: 550 / 1000 },
+            { x: 10 / 50, y: 500 / 1000 },
+            { x: 20 / 50, y: 450 / 1000 },
+            { x: 30 / 50, y: 400 / 1000 },
+            { x: 40 / 50, y: 350 / 1000 },
+            { x: 50 / 50, y: 300 / 1000 },
+          ];
+          description = "Dataset: Price vs. Property Age (Weak Negative)";
+        } else if (dataset === "noCorrelation") {
+          points = [
+            { x: 1960 / 2020, y: 400 / 1000 },
+            { x: 1970 / 2020, y: 600 / 1000 },
+            { x: 1980 / 2020, y: 300 / 1000 },
+            { x: 1990 / 2020, y: 500 / 1000 },
+            { x: 2000 / 2020, y: 400 / 1000 },
+            { x: 2010 / 2020, y: 500 / 1000 },
+          ];
+          description = "Dataset: Price vs. Year Built (No Correlation)";
+        } else {
+          description =
+            "Explore relationships in real estate data (e.g., price vs. square footage). Click to add points or load a dataset.";
+        }
+        document.getElementById("info").children[1].innerText = description;
+      }
+
+      function clearPoints() {
+        points = [];
+        predictedPoint = null;
+        hoveredPoint = null;
+        showResiduals = true;
+        showConfidence = true;
+        manualMode = false;
+        isAnimating = false;
+        predictionHistory = [];
+        currentDataset = "none";
+        document.getElementById("ssr").parentElement.style.display = "block";
+        document.getElementById("correlation").innerText = "0.00";
+        document.getElementById("slope").innerText = "0.00";
+        document.getElementById("intercept").innerText = "0.00";
+        document.getElementById("ssr").innerText = "0.00";
+        document.getElementById("predictionResult").innerText = "";
+        document.getElementById("predictX").value = "";
+        document.getElementById("pointInfo").innerText =
+          "Hover over a point to see coordinates";
+        document.getElementById("dataset").value = "none";
+        document.getElementById("info").children[1].innerText =
+          "Explore relationships in real estate data (e.g., price vs. square footage). Click to add points or load a dataset.";
+        updatePredictionHistory();
+        resetSliders();
+      }
+    </script>
+  </body>
+</html>
